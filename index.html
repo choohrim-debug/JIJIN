@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>🏢 수도여고 지진 공명 제어 시뮬레이터</title>
+    <link type="text/css" href="https://www.glowscript.org/css/redmond/2.13.0/jquery-ui.custom.css" rel="stylesheet" />
+    <link type="text/css" href="https://www.glowscript.org/css/ide.css" rel="stylesheet" />
+    <script type="text/javascript" src="https://www.glowscript.org/lib/jquery/2.13.0/jquery.min.js"></script>
+    <script type="text/javascript" src="https://www.glowscript.org/lib/jquery/2.13.0/jquery-ui.custom.min.js"></script>
+    <script type="text/javascript" src="https://www.glowscript.org/package/glow.3.2.min.js"></script>
+    <script type="text/javascript" src="https://www.glowscript.org/package/RSrun.3.2.min.js"></script>
+</head>
+<body>
+
+<div id="glowscript" class="glowscript"></div>
+
+<script type="text/javascript">
+// 💥 GlowScript 웹 엔진 구동을 위한 자바스크립트 래핑
+window.__context = { 
+    glowscript_container: $("#glowscript"),
+    lang: "propython",
+    version: "3.2"
+};
+
+async function __main() {
+    // 여기서부터 순수 Web VPython 문법 시작!
+    
+    // 1. 실제 지진 가속도(PGA 0.395) 모델링 데이터 배열
+    var jijin_data = [
+        [0.0, 0.0085], [0.1, 0.395], [0.2, 0.2445], [0.3, 0.048], [0.4, -0.0685],
+        [0.5, -0.3095], [0.6, -0.2661], [0.7, 0.1705], [0.8, 0.3329], [0.9, 0.1277],
+        [1.0, -0.1228], [1.1, -0.2583], [1.2, -0.1504], [1.3, 0.063], [1.4, 0.198],
+        [1.5, 0.1342], [1.6, -0.0211], [1.7, -0.1378], [1.8, -0.1119], [1.9, 0.003],
+        [2.0, 0.0898], [2.1, 0.0863], [2.2, 0.0075], [2.3, -0.0545], [2.4, -0.0628],
+        [2.5, -0.0175], [2.6, 0.0305], [2.7, 0.043], [2.8, 0.0205], [2.9, -0.014],
+        [3.0, -0.0282], [3.1, -0.0176], [3.2, 0.005], [3.3, 0.0179], [3.4, 0.0135],
+        [3.5, -0.0011], [3.6, -0.0109], [3.7, -0.0094], [3.8, -0.0005], [3.9, 0.0063],
+        [4.0, 0.0062], [4.1, 0.0013], [4.2, -0.0034], [4.3, -0.004], [4.4, -0.0014],
+        [4.5, 0.0016], [4.6, 0.0025], [4.7, 0.0012], [4.8, -0.0007], [4.9, -0.0015],
+        [5.0, -0.0009], [5.1, 0.0002], [5.2, 0.0009], [5.3, 0.0007], [5.4, 0.0001],
+        [5.5, -0.0005], [5.6, -0.0005], [5.7, -0.0001], [5.8, 0.0003], [5.9, 0.0003],
+        [6.0, 0.0001], [6.1, -0.0002], [6.2, -0.0002], [6.3, -0.0001], [6.4, 0.0001],
+        [6.5, 0.0001], [6.6, 0.0000], [6.7, -0.0001], [6.8, -0.0001], [6.9, -0.0000],
+        [7.0, 0.0000], [7.1, 0.0000], [7.2, 0.0000], [7.3, -0.0000], [7.4, -0.0000],
+        [7.5, -0.0000], [7.6, 0.0000], [7.7, 0.0000], [7.8, 0.0000], [7.9, -0.0000],
+        [8.0, -0.0000], [8.1, -0.0000], [8.2, 0.0000], [8.3, 0.0000], [8.4, 0.0000],
+        [8.5, -0.0000], [8.6, -0.0000], [8.7, -0.0000], [8.8, 0.0000], [8.9, 0.0000],
+        [9.0, 0.0000], [9.1, -0.0000], [9.2, -0.0000], [9.3, -0.0000], [9.4, 0.0000],
+        [9.5, 0.0000], [9.6, 0.0000], [9.7, -0.0000], [9.8, -0.0000], [9.9, -0.0000],
+        [10.0, 0.0000]
+    ];
+
+    // 2. 3D 캔버스 설정
+    var scene = canvas({title: "🏢 수도여고 지진 공명 제어(TMD) 인터랙티브 시뮬레이터", width: 800, height: 450, center: vector(0, 6, 0), background: color.white});
+    var ground = box({pos: vector(0, -0.5, 0), size: vector(30, 1, 15), color: color.gray(0.6)});
+
+    // 2D 그래프 플로팅 설정 (B트랙 만족)
+    var vgraph = graph({title: "📊 실시간 지진파 및 건물 진폭 그래프", xtitle: "시간 (초)", ytitle: "세기 / 변위", width: 800, height: 300});
+    var g_jijin = gcurve({color: color.blue, label: "지진 가속도"});
+    var g_building = gcurve({color: color.orange, label: "수도여고 진폭"});
+
+    var num_floors = 5;         
+    var tmd_mass_ratio = 0.02;   
+    var reset_flag = false;      
+
+    var building_parts = [];
+    var school_text = null;
+    var tmd_sphere = null;
+
+    // 3. 수도여고 본관 빌딩 렌더링 함수
+    function draw_school(floors, tmd_ratio) {
+        for (var i = 0; i < building_parts.length; i++) {
+            building_parts[i].visible = false;
+        }
+        building_parts = [];
+        if (school_text) school_text.visible = false;
+        if (tmd_sphere) tmd_sphere.visible = false;
+            
+        var floor_height = 2.0;
+        var total_height = floors * floor_height;
+        
+        // 수도여고 특유의 넓은 벽돌색 교사 외형
+        var main_body = box({pos: vector(0, total_height/2, 0), size: vector(18, total_height, 5), color: vector(0.8, 0.45, 0.35)});
+        building_parts.push(main_body);
+        
+        school_text = text({text: "수도여고", pos: vector(-3, total_height - 1.4, 2.6), height: 0.9, depth: 0.1, color: color.yellow});
+        
+        for (var f = 0; f < floors; f++) {
+            var y_pos = f * floor_height + 1.0;
+            for (var x_pos = -8; x_pos <= 8; x_pos += 2) {
+                if (x_pos == 0 && f == floors - 1) continue; 
+                var win = box({pos: vector(x_pos, y_pos, 2.52), size: vector(1.1, 0.9, 0.05), color: color.cyan});
+                building_parts.push(win);
+            }
+        }
+        var tmd_radius = 0.3 + (tmd_ratio * 10) * 0.2;
+        tmd_sphere = sphere({pos: vector(0, total_height + tmd_radius, 0), radius: tmd_radius, color: color.red});
+    }
+
+    // 4. 웹브라우저 전용 슬라이더 UI 바인딩
+    scene.append_to_caption("\n📐 **컨트롤 패널** (슬라이더 조작 시 실험이 자동 재시작됩니다)\n\n");
+
+    slider({bind: function(s) { num_floors = int(s.value); floor_text.text = " 🏢 건물 높이: " + num_floors + "층 "; reset_flag = true; }, min: 3, max: 10, value: 5, step: 1});
+    var floor_text = wtext({text: " 🏢 건물 높이: 5층 "});
+    scene.append_to_caption("   |   ");
+
+    slider({bind: function(s) { tmd_mass_ratio = s.value; tmd_text.text = " 🔴 내진 추 무게: " + (tmd_mass_ratio*100).toFixed(1) + "% "; reset_flag = true; }, min: 0.0, max: 0.1, value: 0.02, step: 0.005});
+    var tmd_text = wtext({text: " 🔴 내진 추 무게: 2.0% "});
+
+    // 5. 실시간 웹 물리 연산 루프
+    while (true) {
+        draw_school(num_floors, tmd_mass_ratio);
+        reset_flag = false;
+        
+        g_jijin.delete();
+        g_building.delete();
+        
+        var x_b = 0.0, v_b = 0.0;
+        var x_t = 0.0, v_t = 0.0;
+        var x_g = 0.0, v_g = 0.0;
+        var dt = 0.1;
+        
+        var M = num_floors * 1000.0;
+        var K = 180000.0 / num_floors;
+        var C = 2 * 0.04 * sqrt(K*M);
+        var omega_target = sqrt(180000.0 / 5.0 / 5000.0);
+        
+        for (var idx = 0; idx < jijin_data.length; idx++) {
+            if (reset_flag) break;
+            
+            var row = jijin_data[idx];
+            var t = row[0];
+            var a_g = row[1] * 15.0;
+            
+            var a_b = 0.0, a_t = 0.0;
+            if (tmd_mass_ratio > 0) {
+                var m = M * tmd_mass_ratio;
+                var k_t = m * (omega_target * omega_target);
+                var c_t = 2 * 0.15 * sqrt(k_t * m);
+                
+                a_b = -(K/M)*x_b - (C/M)*v_b + (k_t/M)*x_t + (c_t/M)*v_t - a_g;
+                a_t = (K/M)*x_b + (C/M)*v_b - k_t*(1/m + 1/M)*x_t - c_t*(1/m + 1/M)*v_t;
+            } else {
+                a_b = -(K/M)*x_b - (C/M)*v_b - a_g;
+            }
+            
+            v_b += a_b * dt;
+            x_b += v_b * dt;
+            if (tmd_mass_ratio > 0) {
+                v_t += a_t * dt;
+                x_t += v_t * dt;
+            }
+            
+            v_g += a_g * dt;
+            x_g += v_g * dt;
+            
+            await rate(10); // 자바스크립트 비동기 프레임 동기화
+            
+            ground.pos.x = x_g;
+            for (var p = 0; p < building_parts.length; p++) {
+                building_parts[p].pos.x += (a_g*0.05 + v_b*dt);
+            }
+            school_text.pos.x = building_parts[0].pos.x - 3;
+            
+            if (tmd_sphere) {
+                tmd_sphere.pos.x = building_parts[0].pos.x + x_t * 2.5;
+            }
+            
+            g_jijin.plot(t, a_g / 15.0);
+            g_building.plot(t, x_b);
+        }
+        
+        if (!reset_flag) await sleep(1.0);
+    }
+}
+__main();
+</script>
+
+</body>
+</html>
