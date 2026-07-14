@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🏢 수도여고 지진 공명 제어 시뮬레이터</title>
+    <title>🏢 동조질량댐퍼(TMD) 내진 설계 시뮬레이션</title>
     
     <link type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.12.1/themes/smoothness/jquery-ui.min.css" rel="stylesheet" />
     <style>
@@ -22,6 +22,7 @@
 <div id="glowscript" class="glowscript"></div>
 
 <script type="text/javascript">
+// 깃허브 서버 보안 우회 및 컨텍스트 바인딩
 window.__context = { 
     glowscript_container: $("#glowscript"),
     lang: "propython",
@@ -29,169 +30,132 @@ window.__context = {
 };
 
 async function __main() {
-    var jijin_data = [
-        [0.0, 0.0085], [0.1, 0.395], [0.2, 0.2445], [0.3, 0.048], [0.4, -0.0685],
-        [0.5, -0.3095], [0.6, -0.2661], [0.7, 0.1705], [0.8, 0.3329], [0.9, 0.1277],
-        [1.0, -0.1228], [1.1, -0.2583], [1.2, -0.1504], [1.3, 0.063], [1.4, 0.198],
-        [1.5, 0.1342], [1.6, -0.0211], [1.7, -0.1378], [1.8, -0.1119], [1.9, 0.003],
-        [2.0, 0.0898], [2.1, 0.0863], [2.2, 0.0075], [2.3, -0.0545], [2.4, -0.0628],
-        [2.5, -0.0175], [2.6, 0.0305], [2.7, 0.043], [2.8, 0.0205], [2.9, -0.014],
-        [3.0, -0.0282], [3.1, -0.0176], [3.2, 0.005], [3.3, 0.0179], [3.4, 0.0135],
-        [3.5, -0.0011], [3.6, -0.0109], [3.7, -0.0094], [3.8, -0.0005], [3.9, 0.0063],
-        [4.0, 0.0062], [4.1, 0.0013], [4.2, -0.0034], [4.3, -0.004], [4.4, -0.0014],
-        [4.5, 0.0016], [4.6, 0.0025], [4.7, 0.0012], [4.8, -0.0007], [4.9, -0.0015],
-        [5.0, -0.0009], [5.1, 0.0002], [5.2, 0.0009], [5.3, 0.0007], [5.4, 0.0001],
-        [5.5, -0.0005], [5.6, -0.0005], [5.7, -0.0001], [5.8, 0.0003], [5.9, 0.0003],
-        [6.0, 0.0001], [6.1, -0.0002], [6.2, -0.0002], [6.3, -0.0001], [6.4, 0.0001],
-        [6.5, 0.0001], [6.6, 0.0000], [6.7, -0.0001], [6.8, -0.0001], [6.9, -0.0000],
-        [7.0, 0.0000], [7.1, 0.0000], [7.2, 0.0000], [7.3, -0.0000], [7.4, -0.0000],
-        [7.5, -0.0000], [7.6, 0.0000], [7.7, 0.0000], [7.8, 0.0000], [7.9, -0.0000],
-        [8.0, -0.0000], [8.1, -0.0000], [8.2, 0.0000], [8.3, 0.0000], [8.4, 0.0000],
-        [8.5, -0.0000], [8.6, -0.0000], [8.7, -0.0000], [8.8, 0.0000], [8.9, 0.0000],
-        [9.0, 0.0000], [9.1, -0.0000], [9.2, -0.0000], [9.3, -0.0000], [9.4, 0.0000],
-        [9.5, 0.0000], [9.6, 0.0000], [9.7, -0.0000], [9.8, -0.0000], [9.9, -0.0000],
-        [10.0, 0.0000]
-    ];
+    // 1. 캔버스 및 화면 설정
+    var scene = canvas({title: "동조질량댐퍼(TMD) 내진 설계 시뮬레이션", width: 800, height: 600, center: vector(0, 5, 0)});
 
-    var scene = canvas({title: "🏢 수도여고 지진 공명 제어(TMD) 인터랙티브 시뮬레이터", width: 800, height: 450, center: vector(0, 7, 0), background: color.white});
-    var ground = box({pos: vector(0, -0.5, 0), size: vector(30, 1, 15), color: color.gray(0.6)});
+    // --- 기본 물리 상수 및 초기 변수 ---
+    var g = 9.8;
+    var dt = 0.01;
+    var t = 0.0;
 
-    var vgraph = graph({title: "📊 실시간 지반 가속도 및 건물 흔들림 그래프", xtitle: "시간 (초)", ytitle: "변위 / 세기", width: 800, height: 280});
-    var g_jijin = gcurve({color: color.blue, label: "지진 가속도"});
-    var g_building = gcurve({color: color.orange, label: "수도여고 진폭"});
+    // [조작 변수 초기값]
+    var earthquake_freq = 1.0;   // 변수 1: 지진파 진동수 (Hz)
+    var tmd_mass = 5.0;          // 변수 2: 내진장치 추의 질량 (kg)
+    var building_floors = 3;     // 변수 3: 건물 층수 (층)
 
-    // 💥 초기화 설정 변경: 추 무게 3% 세팅으로 시작하자마자 빨간 추 등장!
-    var num_floors = 5;         
-    var tmd_mass_ratio = 0.03;   
-    var reset_flag = false;      
+    // 건물의 물리적 특성
+    var building_mass = 50.0;    // 건물 자체 기본 질량
+    var k_building = 500.0;      // 건물의 탄성계수 (강성)
+    var k_tmd = 50.0;            // TMD 스프링의 탄성계수
 
-    var building_parts = [];
-    var school_text = null;
-    var tmd_sphere = null;
+    // 상태 변수 (위치, 속도)
+    var ground_x = 0.0;
+    var building_x = 0.0;
+    var building_v = 0.0;
+    var tmd_x = 0.0;
+    var tmd_v = 0.0;
 
-    function draw_school(floors, tmd_ratio) {
-        for (var i = 0; i < building_parts.length; i++) {
-            building_parts[i].visible = false;
-        }
-        building_parts = [];
-        if (school_text) school_text.visible = false;
-        if (tmd_sphere) tmd_sphere.visible = false;
-            
-        var floor_height = 2.0;
-        var total_height = floors * floor_height;
-        
-        // 💥 높이에 비례해서 진짜 y축(길이)이 늘어나는 견고한 상자 디자인
-        var main_body = box({pos: vector(0, total_height/2, 0), size: vector(18, total_height, 5), color: vector(0.8, 0.45, 0.35)});
-        building_parts.push(main_body);
-        
-        school_text = text({text: "수도여고", pos: vector(-3, total_height - 1.4, 2.6), height: 0.9, depth: 0.1, color: color.yellow});
-        
-        for (var f = 0; f < floors; f++) {
-            var y_pos = f * floor_height + 1.0;
-            for (var x_pos = -8; x_pos <= 8; x_pos += 2) {
-                if (x_pos == 0 && f == floors - 1) continue; 
-                var win = box({pos: vector(x_pos, y_pos, 2.52), size: vector(1.1, 0.9, 0.05), color: vector(0.1, 0.6, 0.8)});
-                building_parts.push(win);
-            }
-        }
-        // 🔴 내진 추 렌더링 활성화
-        if (tmd_ratio > 0) {
-            var tmd_radius = 0.4 + (tmd_ratio * 10) * 0.25;
-            tmd_sphere = sphere({pos: vector(0, total_height + tmd_radius, 0), radius: tmd_radius, color: color.red});
-        }
+    // --- 3D 오브젝트 생성 ---
+    // 바닥 (지면)
+    var ground = box({pos: vector(0, -0.5, 0), size: vector(15, 1, 5), color: color.gray(0.5)});
+
+    // 건물 (층수에 따라 높이가 달라짐)
+    var building = box({pos: vector(0, building_floors * 1.5, 0), size: vector(3, building_floors * 3, 3), color: color.blue, opacity: 0.7});
+
+    // 내진 장치 (TMD 추와 연결 스프링 가이드라인)
+    var tmd_shadow = cylinder({pos: building.pos.clone().add(vector(0, building.size.y/2 - 0.5, 0)), axis: vector(0,-1,0), radius: 0.1, color: color.white}); 
+    var tmd_ball = sphere({pos: tmd_shadow.pos.clone(), radius: 0.4, color: color.red});
+
+    // 실시간 그래프 창 생성
+    var graph_scene = graph({title: "건물 및 TMD의 변위 변화", xtitle: "Time (s)", ytitle: "Displacement (m)", width: 800, height: 300});
+    var f_building = gcurve({color: color.blue, label: "Building"});
+    var f_tmd = gcurve({color: color.red, label: "TMD Pendulum"});
+
+    // --- UI 슬라이더 조작 함수 설정 ---
+    function set_freq(s) {
+        earthquake_freq = s.value;
+        wt_freq.text = earthquake_freq.toFixed(1) + " Hz";
     }
 
-    scene.append_to_caption("\n📐 **컨트롤 패널** (슬라이더 조작 시 처음부터 다시 시작됩니다)\n\n");
+    function set_tmd_mass(s) {
+        tmd_mass = s.value;
+        wt_mass.text = tmd_mass.toFixed(1) + " kg";
+    }
 
-    slider({bind: function(s) { num_floors = int(s.value); floor_text.text = " 🏢 건물 높이: " + num_floors + "층 "; reset_flag = true; }, min: 3, max: 10, value: 5, step: 1});
-    var floor_text = wtext({text: " 🏢 건물 높이: 5층 "});
-    scene.append_to_caption("   |   ");
+    function set_floors(s) {
+        building_floors = int(s.value);
+        wt_floors.text = building_floors + " Floors";
+        
+        // 건물 크기 및 위치 실시간 업데이트 (친구 로직 100% 반영)
+        building.size.y = building_floors * 3;
+        building.pos.y = building.size.y / 2;
+    }
 
-    slider({bind: function(s) { tmd_mass_ratio = s.value; tmd_text.text = " 🔴 내진 추 무게: " + (tmd_mass_ratio*100).toFixed(1) + "% "; reset_flag = true; }, min: 0.0, max: 0.1, value: 0.03, step: 0.005});
-    var tmd_text = wtext({text: " 🔴 내진 추 무게: 3.0% "});
+    // UI 텍스트 및 슬라이더 배치
+    scene.append_to_caption("\n\n");
+    slider({min: 0.2, max: 3.0, value: earthquake_freq, bind: set_freq, step: 0.1});
+    scene.append_to_caption(" ◀ 지진파 진동수 (Hz): ");
+    var wt_freq = wtext({text: earthquake_freq.toFixed(1) + " Hz"});
 
+    scene.append_to_caption("\n\n");
+    slider({min: 0.0, max: 20.0, value: tmd_mass, bind: set_tmd_mass, step: 0.5});
+    scene.append_to_caption(" ◀ 내진추 질량 (kg) [0이면 효과 없음]: ");
+    var wt_mass = wtext({text: tmd_mass.toFixed(1) + " kg"});
+
+    scene.append_to_caption("\n\n");
+    slider({min: 1, max: 5, value: building_floors, bind: set_floors, step: 1});
+    scene.append_to_caption(" ◀ 건물 층수 (높이): ");
+    var wt_floors = wtext({text: building_floors + " Floors"});
+
+    // --- 메인 시뮬레이션 루프 ---
     while (true) {
-        draw_school(num_floors, tmd_mass_ratio);
-        reset_flag = false;
+        await rate(100); // 브라우저 비동기 멈춤 현상 방지 필수 코드
         
-        g_jijin.delete();
-        g_building.delete();
+        // 1. 지진파 발생 (지면의 주기적 흔들림 - 단진동)
+        var omega_earthquake = 2 * 3.14159 * earthquake_freq;
+        ground_x = 0.5 * sin(omega_earthquake * t);
+        ground.pos.x = ground_x;
         
-        var x_b = 0.0, v_b = 0.0;
-        var x_t = 0.0, v_t = 0.0;
-        var x_g = 0.0, v_g = 0.0;
-        var dt = 0.1;
+        // 2. 건물에 가해지는 물리 법칙 계산
+        var effective_k_building = k_building / (building_floors * 0.8);
         
-        var M = num_floors * 1000.0;
-        var K = 180000.0 / num_floors;
-        var C = 2 * 0.04 * sqrt(K*M);
-        var omega_target = sqrt(180000.0 / 5.0 / 5000.0);
+        // 건물에 작용하는 복원력
+        var f_b = - effective_k_building * (building_x - ground_x);
         
-        for (var idx = 0; idx < jijin_data.length; idx++) {
-            if (reset_flag) break;
-            
-            var row = jijin_data[idx];
-            var t = row[0];
-            
-            // 💥 시각적 타격감을 위해 지진 흔들림 배율을 극단적인 값으로 증가! (약 250배)
-            var a_g = row[1] * 250.0; 
-            
-            var a_b = 0.0, a_t = 0.0;
-            if (tmd_mass_ratio > 0) {
-                var m = M * tmd_mass_ratio;
-                var k_t = m * (omega_target * omega_target);
-                var c_t = 2 * 0.15 * sqrt(k_t * m);
-                
-                a_b = -(K/M)*x_b - (C/M)*v_b + (k_t/M)*x_t + (c_t/M)*v_t - a_g;
-                a_t = (K/M)*x_b + (C/M)*v_b - k_t*(1/m + 1/M)*x_t - c_t*(1/m + 1/M)*v_t;
-            } else {
-                a_b = -(K/M)*x_b - (C/M)*v_b - a_g;
-            }
-            
-            v_b += a_b * dt;
-            x_b += v_b * dt;
-            if (tmd_mass_ratio > 0) {
-                v_t += a_t * dt;
-                x_t += v_t * dt;
-            }
-            
-            v_g += a_g * dt;
-            x_g += v_g * dt;
-            
-            await rate(10); 
-            
-            // 지반(바닥) 좌우 요동 렌더링
-            ground.pos.x = x_g * 0.35;
-            
-            // 💥 건물의 최종 상대 흔들림 폭을 눈에 확 띄게 극대화 튜닝
-            var current_building_x = (x_g * 0.35) + (x_b * 12.0);
-            
-            for (var p = 0; p < building_parts.length; p++) {
-                if (p === 0) {
-                    building_parts[p].pos.x = current_building_x;
-                } else {
-                    var local_x = (p - 1) % 9 * 2 - 8;
-                    if (local_x >= 0 && (p-1) >= (num_floors * 9 - 9)) {
-                        local_x += 2;
-                    }
-                    building_parts[p].pos.x = current_building_x + local_x;
-                }
-            }
-            school_text.pos.x = current_building_x - 3;
-            
-            if (tmd_sphere) {
-                // 추가 건물의 변위와 반대로 진동 감쇠 반응하는 기하학적 모션 극대화
-                tmd_sphere.pos.x = current_building_x + (x_t * 18.0);
-            }
-            
-            g_jijin.plot(t, a_g / 250.0);
-            g_building.plot(t, x_b * 3.5);
+        // TMD가 건물에 주는 반작용력 계산
+        var f_tmd_interaction = - k_tmd * (tmd_x - building_x);
+        
+        // 건물의 최종 가속도 및 속도, 위치 업데이트
+        var building_a = (f_b - f_tmd_interaction) / building_mass;
+        building_v += building_a * dt;
+        building_x += building_v * dt;
+        
+        // 3. TMD(내진장치) 물리 계산
+        if (tmd_mass > 0) {
+            var tmd_a = f_tmd_interaction / tmd_mass;
+            tmd_v += tmd_a * dt;
+            tmd_x += tmd_v * dt;
+        } else {
+            tmd_x = building_x;
+            tmd_v = 0;
         }
+            
+        // 4. 3D 그래픽 객체 위치 동기화
+        building.pos.x = building_x;
         
-        if (!reset_flag) await sleep(1.0);
+        // 💥 시각적 버그 방지: 실시간으로 가변하는 건물의 높이(size.y)를 계산하여 위치 동기화
+        tmd_shadow.pos = vector(building_x, building.size.y - 0.5, 0);
+        tmd_ball.pos = vector(tmd_x, building.size.y - 0.5, 0);
+        
+        // 5. 그래프 플로팅 (지면 기준 상대 흔들림)
+        f_building.plot(t, building_x - ground_x);
+        f_tmd.plot(t, tmd_x - building_x);
+        
+        t += dt;
     }
 }
 
+// 웹페이지 로드가 완료되면 물리 엔진 즉시 가동
 $(document).ready(function() {
     __main();
 });
