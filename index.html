@@ -53,15 +53,16 @@ async function __main() {
         [10.0, 0.0000]
     ];
 
-    var scene = canvas({title: "🏢 수도여고 지진 공명 제어(TMD) 인터랙티브 시뮬레이터", width: 800, height: 450, center: vector(0, 6, 0), background: color.white});
+    var scene = canvas({title: "🏢 수도여고 지진 공명 제어(TMD) 인터랙티브 시뮬레이터", width: 800, height: 450, center: vector(0, 7, 0), background: color.white});
     var ground = box({pos: vector(0, -0.5, 0), size: vector(30, 1, 15), color: color.gray(0.6)});
 
     var vgraph = graph({title: "📊 실시간 지반 가속도 및 건물 흔들림 그래프", xtitle: "시간 (초)", ytitle: "변위 / 세기", width: 800, height: 280});
     var g_jijin = gcurve({color: color.blue, label: "지진 가속도"});
     var g_building = gcurve({color: color.orange, label: "수도여고 진폭"});
 
+    // 💥 초기화 설정 변경: 추 무게 3% 세팅으로 시작하자마자 빨간 추 등장!
     var num_floors = 5;         
-    var tmd_mass_ratio = 0.00;   
+    var tmd_mass_ratio = 0.03;   
     var reset_flag = false;      
 
     var building_parts = [];
@@ -79,6 +80,7 @@ async function __main() {
         var floor_height = 2.0;
         var total_height = floors * floor_height;
         
+        // 💥 높이에 비례해서 진짜 y축(길이)이 늘어나는 견고한 상자 디자인
         var main_body = box({pos: vector(0, total_height/2, 0), size: vector(18, total_height, 5), color: vector(0.8, 0.45, 0.35)});
         building_parts.push(main_body);
         
@@ -88,13 +90,13 @@ async function __main() {
             var y_pos = f * floor_height + 1.0;
             for (var x_pos = -8; x_pos <= 8; x_pos += 2) {
                 if (x_pos == 0 && f == floors - 1) continue; 
-                // 창문 색상을 진한 청록색으로 바꾸어 가독성 상향
                 var win = box({pos: vector(x_pos, y_pos, 2.52), size: vector(1.1, 0.9, 0.05), color: vector(0.1, 0.6, 0.8)});
                 building_parts.push(win);
             }
         }
+        // 🔴 내진 추 렌더링 활성화
         if (tmd_ratio > 0) {
-            var tmd_radius = 0.3 + (tmd_ratio * 10) * 0.2;
+            var tmd_radius = 0.4 + (tmd_ratio * 10) * 0.25;
             tmd_sphere = sphere({pos: vector(0, total_height + tmd_radius, 0), radius: tmd_radius, color: color.red});
         }
     }
@@ -105,8 +107,8 @@ async function __main() {
     var floor_text = wtext({text: " 🏢 건물 높이: 5층 "});
     scene.append_to_caption("   |   ");
 
-    slider({bind: function(s) { tmd_mass_ratio = s.value; tmd_text.text = " 🔴 내진 추 무게: " + (tmd_mass_ratio*100).toFixed(1) + "% "; reset_flag = true; }, min: 0.0, max: 0.1, value: 0.0, step: 0.005});
-    var tmd_text = wtext({text: " 🔴 내진 추 무게: 0.0% "});
+    slider({bind: function(s) { tmd_mass_ratio = s.value; tmd_text.text = " 🔴 내진 추 무게: " + (tmd_mass_ratio*100).toFixed(1) + "% "; reset_flag = true; }, min: 0.0, max: 0.1, value: 0.03, step: 0.005});
+    var tmd_text = wtext({text: " 🔴 내진 추 무게: 3.0% "});
 
     while (true) {
         draw_school(num_floors, tmd_mass_ratio);
@@ -131,8 +133,8 @@ async function __main() {
             var row = jijin_data[idx];
             var t = row[0];
             
-            // 💥 핵심 수정: 시각적으로 흔들림이 화끈하게 보이도록 배율을 15배 -> 60배로 대폭 업그레이드!
-            var a_g = row[1] * 60.0; 
+            // 💥 시각적 타격감을 위해 지진 흔들림 배율을 극단적인 값으로 증가! (약 250배)
+            var a_g = row[1] * 250.0; 
             
             var a_b = 0.0, a_t = 0.0;
             if (tmd_mass_ratio > 0) {
@@ -158,20 +160,18 @@ async function __main() {
             
             await rate(10); 
             
-            // 지반 흔들림 렌더링 스케일 보정
-            ground.pos.x = x_g * 0.4;
+            // 지반(바닥) 좌우 요동 렌더링
+            ground.pos.x = x_g * 0.35;
             
-            // 💥 건물 각 부분의 프레임 위치 이동량과 흔들림을 확실히 눈에 보이게 튜닝!
-            var current_building_x = (x_g * 0.4) + (x_b * 3.5);
+            // 💥 건물의 최종 상대 흔들림 폭을 눈에 확 띄게 극대화 튜닝
+            var current_building_x = (x_g * 0.35) + (x_b * 12.0);
             
             for (var p = 0; p < building_parts.length; p++) {
                 if (p === 0) {
                     building_parts[p].pos.x = current_building_x;
                 } else {
-                    // 창문들도 건물 벽면에 딱 밀착하여 함께 역동적으로 흔들림
                     var local_x = (p - 1) % 9 * 2 - 8;
                     if (local_x >= 0 && (p-1) >= (num_floors * 9 - 9)) {
-                        // 교명 자리를 피하기 위한 보정
                         local_x += 2;
                     }
                     building_parts[p].pos.x = current_building_x + local_x;
@@ -180,13 +180,12 @@ async function __main() {
             school_text.pos.x = current_building_x - 3;
             
             if (tmd_sphere) {
-                // 내진 추가 건물 꼭대기에서 바쁘게 쿵쾅쿵쾅 버티는 무빙 연출
-                tmd_sphere.pos.x = current_building_x + (x_t * 8.0);
+                // 추가 건물의 변위와 반대로 진동 감쇠 반응하는 기하학적 모션 극대화
+                tmd_sphere.pos.x = current_building_x + (x_t * 18.0);
             }
             
-            // 그래프의 파형도 시원시원하게 스케일 매핑
-            g_jijin.plot(t, a_g / 60.0);
-            g_building.plot(t, x_b * 2.0);
+            g_jijin.plot(t, a_g / 250.0);
+            g_building.plot(t, x_b * 3.5);
         }
         
         if (!reset_flag) await sleep(1.0);
