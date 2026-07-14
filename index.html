@@ -2,20 +2,20 @@
 <html>
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🏢 수도여고 지진 공명 제어 시뮬레이터</title>
-    <link type="text/css" href="https://www.glowscript.org/css/redmond/2.13.0/jquery-ui.custom.css" rel="stylesheet" />
-    <link type="text/css" href="https://www.glowscript.org/css/ide.css" rel="stylesheet" />
-    <script type="text/javascript" src="https://www.glowscript.org/lib/jquery/2.13.0/jquery.min.js"></script>
-    <script type="text/javascript" src="https://www.glowscript.org/lib/jquery/2.13.0/jquery-ui.custom.min.js"></script>
-    <script type="text/javascript" src="https://www.glowscript.org/package/glow.3.2.min.js"></script>
-    <script type="text/javascript" src="https://www.glowscript.org/package/RSrun.3.2.min.js"></script>
+    <link type="text/css" href="https://code.jquery.com/ui/1.12.1/themes/smoothness/jquery-ui.css" rel="stylesheet" />
+    <script type="text/javascript" src="https://code.jquery.com/jquery-1.12.4.min.js"></script>
+    <script type="text/javascript" src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/glowscript/glowscript@3.2/package/glow.3.2.min.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/glowscript/glowscript@3.2/package/RSrun.3.2.min.js"></script>
 </head>
 <body>
 
 <div id="glowscript" class="glowscript"></div>
 
 <script type="text/javascript">
-// 💥 GlowScript 웹 엔진 구동을 위한 자바스크립트 래핑
+// 💡 백지 오류 해결 핵심: 자바스크립트 컴파일러 컨텍스트 명확히 바인딩
 window.__context = { 
     glowscript_container: $("#glowscript"),
     lang: "propython",
@@ -23,9 +23,7 @@ window.__context = {
 };
 
 async function __main() {
-    // 여기서부터 순수 Web VPython 문법 시작!
-    
-    // 1. 실제 지진 가속도(PGA 0.395) 모델링 데이터 배열
+    // [시간, 지진가속도] 데이터
     var jijin_data = [
         [0.0, 0.0085], [0.1, 0.395], [0.2, 0.2445], [0.3, 0.048], [0.4, -0.0685],
         [0.5, -0.3095], [0.6, -0.2661], [0.7, 0.1705], [0.8, 0.3329], [0.9, 0.1277],
@@ -50,11 +48,9 @@ async function __main() {
         [10.0, 0.0000]
     ];
 
-    // 2. 3D 캔버스 설정
     var scene = canvas({title: "🏢 수도여고 지진 공명 제어(TMD) 인터랙티브 시뮬레이터", width: 800, height: 450, center: vector(0, 6, 0), background: color.white});
     var ground = box({pos: vector(0, -0.5, 0), size: vector(30, 1, 15), color: color.gray(0.6)});
 
-    // 2D 그래프 플로팅 설정 (B트랙 만족)
     var vgraph = graph({title: "📊 실시간 지진파 및 건물 진폭 그래프", xtitle: "시간 (초)", ytitle: "세기 / 변위", width: 800, height: 300});
     var g_jijin = gcurve({color: color.blue, label: "지진 가속도"});
     var g_building = gcurve({color: color.orange, label: "수도여고 진폭"});
@@ -67,7 +63,6 @@ async function __main() {
     var school_text = null;
     var tmd_sphere = null;
 
-    // 3. 수도여고 본관 빌딩 렌더링 함수
     function draw_school(floors, tmd_ratio) {
         for (var i = 0; i < building_parts.length; i++) {
             building_parts[i].visible = false;
@@ -79,7 +74,6 @@ async function __main() {
         var floor_height = 2.0;
         var total_height = floors * floor_height;
         
-        // 수도여고 특유의 넓은 벽돌색 교사 외형
         var main_body = box({pos: vector(0, total_height/2, 0), size: vector(18, total_height, 5), color: vector(0.8, 0.45, 0.35)});
         building_parts.push(main_body);
         
@@ -97,7 +91,6 @@ async function __main() {
         tmd_sphere = sphere({pos: vector(0, total_height + tmd_radius, 0), radius: tmd_radius, color: color.red});
     }
 
-    // 4. 웹브라우저 전용 슬라이더 UI 바인딩
     scene.append_to_caption("\n📐 **컨트롤 패널** (슬라이더 조작 시 실험이 자동 재시작됩니다)\n\n");
 
     slider({bind: function(s) { num_floors = int(s.value); floor_text.text = " 🏢 건물 높이: " + num_floors + "층 "; reset_flag = true; }, min: 3, max: 10, value: 5, step: 1});
@@ -107,7 +100,6 @@ async function __main() {
     slider({bind: function(s) { tmd_mass_ratio = s.value; tmd_text.text = " 🔴 내진 추 무게: " + (tmd_mass_ratio*100).toFixed(1) + "% "; reset_flag = true; }, min: 0.0, max: 0.1, value: 0.02, step: 0.005});
     var tmd_text = wtext({text: " 🔴 내진 추 무게: 2.0% "});
 
-    // 5. 실시간 웹 물리 연산 루프
     while (true) {
         draw_school(num_floors, tmd_mass_ratio);
         reset_flag = false;
@@ -154,7 +146,7 @@ async function __main() {
             v_g += a_g * dt;
             x_g += v_g * dt;
             
-            await rate(10); // 자바스크립트 비동기 프레임 동기화
+            await rate(10); 
             
             ground.pos.x = x_g;
             for (var p = 0; p < building_parts.length; p++) {
@@ -166,14 +158,17 @@ async function __main() {
                 tmd_sphere.pos.x = building_parts[0].pos.x + x_t * 2.5;
             }
             
-            g_jijin.plot(t, a_g / 15.0);
-            g_building.plot(t, x_b);
+            g_jijin.plot(t, a_g / 15.0)
+            g_building.plot(t, x_b)
         }
         
         if (!reset_flag) await sleep(1.0);
     }
 }
-__main();
+// 페이지 로드가 완전히 완료된 후 메인 물리 함수 안정적 실행
+$(window).on('load', function() {
+    __main();
+});
 </script>
 
 </body>
