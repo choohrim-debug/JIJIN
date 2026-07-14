@@ -1,12 +1,16 @@
-=<!DOCTYPE html>
+<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🏢 수도여고 지진 공명 제어 시뮬레이터</title>
+    
+    <link type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.12.1/themes/smoothness/jquery-ui.min.css" rel="stylesheet" />
     <style>
-        body { margin: 0; padding: 10px; background-color: #ffffff; font-family: sans-serif; }
+        body { margin: 0; padding: 20px; background-color: #ffffff; font-family: 'Malgun Gothic', sans-serif; }
         .glowscript { width: 800px; margin: 0 auto; }
+        /* 슬라이더가 뭉개지지 않도록 자바스크립트 UI 스타일 강제 보정 */
+        .ui-slider { margin: 10px 0; } 
     </style>
     
     <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
@@ -19,7 +23,6 @@
 <div id="glowscript" class="glowscript"></div>
 
 <script type="text/javascript">
-// 브라우저 렌더링 컨텍스트 강제 주입
 window.__context = { 
     glowscript_container: $("#glowscript"),
     lang: "propython",
@@ -27,7 +30,6 @@ window.__context = {
 };
 
 async function __main() {
-    // [시간, 지진가속도] 실제 통계 데이터 기반
     var jijin_data = [
         [0.0, 0.0085], [0.1, 0.395], [0.2, 0.2445], [0.3, 0.048], [0.4, -0.0685],
         [0.5, -0.3095], [0.6, -0.2661], [0.7, 0.1705], [0.8, 0.3329], [0.9, 0.1277],
@@ -52,7 +54,6 @@ async function __main() {
         [10.0, 0.0000]
     ];
 
-    // 캔버스 크기 브라우저 맞춤 조정
     var scene = canvas({title: "🏢 수도여고 지진 공명 제어(TMD) 인터랙티브 시뮬레이터", width: 800, height: 450, center: vector(0, 6, 0), background: color.white});
     var ground = box({pos: vector(0, -0.5, 0), size: vector(30, 1, 15), color: color.gray(0.6)});
 
@@ -61,7 +62,7 @@ async function __main() {
     var g_building = gcurve({color: color.orange, label: "수도여고 진폭"});
 
     var num_floors = 5;         
-    var tmd_mass_ratio = 0.02;   
+    var tmd_mass_ratio = 0.00;   // 화면 피드백에 맞춰 초기 추 무게 0% 설정
     var reset_flag = false;      
 
     var building_parts = [];
@@ -92,18 +93,21 @@ async function __main() {
                 building_parts.push(win);
             }
         }
-        var tmd_radius = 0.3 + (tmd_ratio * 10) * 0.2;
-        tmd_sphere = sphere({pos: vector(0, total_height + tmd_radius, 0), radius: tmd_radius, color: color.red});
+        if (tmd_ratio > 0) {
+            var tmd_radius = 0.3 + (tmd_ratio * 10) * 0.2;
+            tmd_sphere = sphere({pos: vector(0, total_height + tmd_radius, 0), radius: tmd_radius, color: color.red});
+        }
     }
 
     scene.append_to_caption("\n📐 **컨트롤 패널** (슬라이더 조작 시 처음부터 다시 시작됩니다)\n\n");
 
+    // UI 스타일이 깨지지 않게 콜백 바인딩 구조 안정화
     slider({bind: function(s) { num_floors = int(s.value); floor_text.text = " 🏢 건물 높이: " + num_floors + "층 "; reset_flag = true; }, min: 3, max: 10, value: 5, step: 1});
     var floor_text = wtext({text: " 🏢 건물 높이: 5층 "});
     scene.append_to_caption("   |   ");
 
-    slider({bind: function(s) { tmd_mass_ratio = s.value; tmd_text.text = " 🔴 내진 추 무게: " + (tmd_mass_ratio*100).toFixed(1) + "% "; reset_flag = true; }, min: 0.0, max: 0.1, value: 0.02, step: 0.005});
-    var tmd_text = wtext({text: " 🔴 내진 추 무게: 2.0% "});
+    slider({bind: function(s) { tmd_mass_ratio = s.value; tmd_text.text = " 🔴 내진 추 무게: " + (tmd_mass_ratio*100).toFixed(1) + "% "; reset_flag = true; }, min: 0.0, max: 0.1, value: 0.0, step: 0.005});
+    var tmd_text = wtext({text: " 🔴 내진 추 무게: 0.0% "});
 
     while (true) {
         draw_school(num_floors, tmd_mass_ratio);
@@ -171,7 +175,6 @@ async function __main() {
     }
 }
 
-// 💥 브라우저 로딩 즉시 강제 런칭 실행 시켜서 백지 현상 해결
 $(document).ready(function() {
     __main();
 });
