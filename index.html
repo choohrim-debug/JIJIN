@@ -9,7 +9,6 @@
     <style>
         body { margin: 0; padding: 20px; background-color: #ffffff; font-family: 'Malgun Gothic', sans-serif; }
         .glowscript { width: 800px; margin: 0 auto; }
-        /* 슬라이더가 뭉개지지 않도록 자바스크립트 UI 스타일 강제 보정 */
         .ui-slider { margin: 10px 0; } 
     </style>
     
@@ -62,7 +61,7 @@ async function __main() {
     var g_building = gcurve({color: color.orange, label: "수도여고 진폭"});
 
     var num_floors = 5;         
-    var tmd_mass_ratio = 0.00;   // 화면 피드백에 맞춰 초기 추 무게 0% 설정
+    var tmd_mass_ratio = 0.00;   
     var reset_flag = false;      
 
     var building_parts = [];
@@ -89,7 +88,8 @@ async function __main() {
             var y_pos = f * floor_height + 1.0;
             for (var x_pos = -8; x_pos <= 8; x_pos += 2) {
                 if (x_pos == 0 && f == floors - 1) continue; 
-                var win = box({pos: vector(x_pos, y_pos, 2.52), size: vector(1.1, 0.9, 0.05), color: color.cyan});
+                // 창문 색상을 진한 청록색으로 바꾸어 가독성 상향
+                var win = box({pos: vector(x_pos, y_pos, 2.52), size: vector(1.1, 0.9, 0.05), color: vector(0.1, 0.6, 0.8)});
                 building_parts.push(win);
             }
         }
@@ -101,7 +101,6 @@ async function __main() {
 
     scene.append_to_caption("\n📐 **컨트롤 패널** (슬라이더 조작 시 처음부터 다시 시작됩니다)\n\n");
 
-    // UI 스타일이 깨지지 않게 콜백 바인딩 구조 안정화
     slider({bind: function(s) { num_floors = int(s.value); floor_text.text = " 🏢 건물 높이: " + num_floors + "층 "; reset_flag = true; }, min: 3, max: 10, value: 5, step: 1});
     var floor_text = wtext({text: " 🏢 건물 높이: 5층 "});
     scene.append_to_caption("   |   ");
@@ -131,7 +130,9 @@ async function __main() {
             
             var row = jijin_data[idx];
             var t = row[0];
-            var a_g = row[1] * 15.0;
+            
+            // 💥 핵심 수정: 시각적으로 흔들림이 화끈하게 보이도록 배율을 15배 -> 60배로 대폭 업그레이드!
+            var a_g = row[1] * 60.0; 
             
             var a_b = 0.0, a_t = 0.0;
             if (tmd_mass_ratio > 0) {
@@ -157,18 +158,35 @@ async function __main() {
             
             await rate(10); 
             
-            ground.pos.x = x_g;
+            // 지반 흔들림 렌더링 스케일 보정
+            ground.pos.x = x_g * 0.4;
+            
+            // 💥 건물 각 부분의 프레임 위치 이동량과 흔들림을 확실히 눈에 보이게 튜닝!
+            var current_building_x = (x_g * 0.4) + (x_b * 3.5);
+            
             for (var p = 0; p < building_parts.length; p++) {
-                building_parts[p].pos.x += (a_g*0.05 + v_b*dt);
+                if (p === 0) {
+                    building_parts[p].pos.x = current_building_x;
+                } else {
+                    // 창문들도 건물 벽면에 딱 밀착하여 함께 역동적으로 흔들림
+                    var local_x = (p - 1) % 9 * 2 - 8;
+                    if (local_x >= 0 && (p-1) >= (num_floors * 9 - 9)) {
+                        // 교명 자리를 피하기 위한 보정
+                        local_x += 2;
+                    }
+                    building_parts[p].pos.x = current_building_x + local_x;
+                }
             }
-            school_text.pos.x = building_parts[0].pos.x - 3;
+            school_text.pos.x = current_building_x - 3;
             
             if (tmd_sphere) {
-                tmd_sphere.pos.x = building_parts[0].pos.x + x_t * 2.5;
+                // 내진 추가 건물 꼭대기에서 바쁘게 쿵쾅쿵쾅 버티는 무빙 연출
+                tmd_sphere.pos.x = current_building_x + (x_t * 8.0);
             }
             
-            g_jijin.plot(t, a_g / 15.0);
-            g_building.plot(t, x_b);
+            // 그래프의 파형도 시원시원하게 스케일 매핑
+            g_jijin.plot(t, a_g / 60.0);
+            g_building.plot(t, x_b * 2.0);
         }
         
         if (!reset_flag) await sleep(1.0);
